@@ -4,12 +4,24 @@ import java.io.BufferedReader;
 import java.io.FileReader;
 import java.io.IOException;
 import java.io.InputStreamReader;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
 import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
 import com.google.api.services.gmail.Gmail;
 import com.google.api.services.gmail.model.Message;
+import com.google.api.client.repackaged.org.apache.commons.codec.binary.Base64;
+import com.google.api.services.gmail.Gmail;
+import com.google.api.services.gmail.model.Message;
 
+import java.io.ByteArrayInputStream;
+import java.io.IOException;
+import java.net.URLDecoder;
+import java.util.Properties;
+
+import javax.mail.MessagingException;
+import javax.mail.Session;
+import javax.mail.internet.MimeMessage;
 import java.io.ByteArrayInputStream;
 import java.io.IOException;
 import java.net.URLDecoder;
@@ -65,26 +77,86 @@ public class GMailTest {
     // Path to the client_secret.json file
     private static final String CLIENT_SECRET_PATH = "./client_secret.json";
     
+    public static List<Message> listMessagesMatchingQuery(Gmail service, String userId,
+    		 String query) throws IOException {
+    		 ListMessagesResponse response = service.users().messages().list(userId).setQ(query).execute();
+
+    		List<Message> messages = new ArrayList<Message>();
+    		while (response.getMessages() != null) {
+    		messages.addAll(response.getMessages());
+    		if (response.getNextPageToken() != null) {
+    		String pageToken = response.getNextPageToken();
+    		 response = service.users().messages().list(userId).setQ(query)
+    		.setPageToken(pageToken).execute();
+    		 } else {
+    		break;
+    		}
+    		}
+
+    		 for (Message message : messages) {
+    		 System.out.println(message.toPrettyString());
+    	}
+
+    		 return messages;
+    		 }
+    public static List<Message> listMessagesWithLabels(Gmail service, String userId,
+    		 List<String> labelIds) throws IOException {
+    		ListMessagesResponse response = service.users().messages().list(userId)
+    		 .setLabelIds(labelIds).execute();
+
+    		List<Message> messages = new ArrayList<Message>();
+    		 while (response.getMessages() != null) {
+    		 messages.addAll(response.getMessages());
+    		if (response.getNextPageToken() != null) {
+    		 String pageToken = response.getNextPageToken();
+    		 response = service.users().messages().list(userId).setLabelIds(labelIds)
+    		 .setPageToken(pageToken).execute();
+    		} else {
+    		break;
+    		}
+    		}
+
+    		 for (Message message : messages) {
+    		System.out.println(message.toPrettyString());
+    		}
+
+    		 return messages;
+    		 }    
+    public static MimeMessage getMimeMessage(Gmail service, String userId, String messageId)
+    		throws IOException, MessagingException {
+     Message message = service.users().messages().get(userId, messageId).setFormat("raw").execute();
+
+     Base64 base64Url = new Base64(true);
+     byte[] emailBytes = base64Url.decodeBase64(message.getRaw());
+
+    Properties props = new Properties();
+    Session session = Session.getDefaultInstance(props, null);
+    MimeMessage email = new MimeMessage(session, new ByteArrayInputStream(emailBytes));
+
+    return email;
+     }
     
-//    public static Message getMessage(Gmail service, String userId, String messageId)
-//    throws IOException {
-//    Message message = service.users().messages().get(userId, messageId).execute();
-//
-//    System.out.println("Message snippet: " + message.getSnippet());
-//
-//    return message;
-//    }
     
-     
-   
+    public static Message getMessage(Gmail service, String userId, String messageId)
+     throws IOException {
+     Message message = service.users().messages().get(userId, messageId).execute();
+
+     System.out.println("Message snippet: " + message.getSnippet());
+
+     	return message;
+    }
+    
     public static void getThread(Gmail service, String userId, String threadId) throws IOException {
     	 Thread thread = service.users().threads().get(userId, threadId).execute();
     	 System.out.println("Thread id: " + thread.getId());
     	 System.out.println("No. of messages in this thread: " + thread.getMessages().size());
-    	//System.out.println(thread.toPrettyString());
+    	
+    	System.out.println(thread.toPrettyString());
+    	System.out.println("**************************************************************");
+    	
     	}  
     
-    public static void main(String[] args) throws IOException {
+    public static void main(String[] args) throws IOException, MessagingException {
         // set up an HTTP connection and a way to parse JSON
         HttpTransport httpTransport = new NetHttpTransport();
         JsonFactory jsonFactory = new JacksonFactory();
@@ -113,16 +185,17 @@ public class GMailTest {
         // Get page of message threads
         ListThreadsResponse threadsResponse = service.users().threads().list(USER).execute();
         List<Thread> threads = threadsResponse.getThreads();
-
+        
+        ListMessagesResponse messagesResponse = service.users().messages().list(USER).execute();
+        List<Message> messages = messagesResponse.getMessages();
+        
+        
         // Print thread ids
         for (Thread thread : threads) {
-           // System.out.println("Thread ID: " + thread.getId());
-           //System.out.println("No. of messages in this thread: " + thread.getMessages().size());
-            //ListMessagesResponse messageResponse =
-            	 //   service.users().messages().list(USER).setQ("*").execute();
-           // System.out.println(thread.toPrettyString());
-            getThread( service, USER, thread.getId());
-           //System.out.println(messageResponse);
+           
+        	String id =thread.getId();
+            getThread( service, USER, id);
+
         }
     }
 }
